@@ -1,6 +1,8 @@
 package config
 
-import "strings"
+import (
+	"strings"
+)
 
 const (
 	// placeholderBasePath used inside linters to evaluate relative paths.
@@ -11,8 +13,20 @@ const (
 )
 
 func NewPlaceholderReplacer(cfg *Config) *strings.Replacer {
+	// Linters that compile globs with '/' as the separator (notably depguard)
+	// match slash-normalized paths. On Windows, GetBasePath/GetConfigDir use
+	// native backslashes, which gobwas/glob treats as escape characters, so
+	// patterns like "${base-path}/pkg/a.go" never match.
+	//
+	// filepath.ToSlash is a no-op for '\' on non-Windows GOOS, so replace
+	// backslashes explicitly for placeholder expansion only. Callers that need
+	// OS paths still use GetBasePath/GetConfigDir directly.
 	return strings.NewReplacer(
-		placeholderBasePath, cfg.GetBasePath(),
-		placeholderConfigPath, cfg.GetConfigDir(),
+		placeholderBasePath, slashPath(cfg.GetBasePath()),
+		placeholderConfigPath, slashPath(cfg.GetConfigDir()),
 	)
+}
+
+func slashPath(p string) string {
+	return strings.ReplaceAll(p, `\`, `/`)
 }
